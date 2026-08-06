@@ -42,7 +42,7 @@ zenex is a lexer and parser library for C++20, and it treats those two jobs diff
    ```powershell
    meson setup build --native-file build-cfg/windows-clang.ini
    meson compile -C build
-   .\build\zenex_test.exe
+   .\build\ztest.exe
    ```
 
 ### Option B: Standalone LLVM, no Visual Studio install
@@ -60,7 +60,7 @@ zenex is a lexer and parser library for C++20, and it treats those two jobs diff
    ```powershell
    meson setup build --native-file build-cfg/windows-clang.ini
    meson compile -C build
-   .\build\zenex_test.exe
+   .\build\ztest.exe
    ```
    If `meson setup` cannot find Clang, confirm `clang.exe` or `clang-cl.exe` resolves in your shell and double check `build-cfg/windows-clang.ini` points at the right binary name for your install.
 
@@ -100,7 +100,7 @@ Then, from the project root, on any of the above:
 ```bash
 meson setup build --native-file build-cfg/linux-clang.ini
 meson compile -C build
-./build/zenex_test
+./build/ztest
 ```
 
 ## Running the tests
