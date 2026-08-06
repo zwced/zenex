@@ -1,0 +1,7 @@
+option('sanitizer', type : 'combo',
+    choices : ['none', 'address', 'undefined', 'thread'],
+    value : 'none',
+    description : 'Build with a sanitizer enabled, debug builds only')
+
+option('lto', type : 'boolean', value : false,
+    description : 'Enable link time optimisation on non-debug builds')
