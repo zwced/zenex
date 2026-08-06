@@ -3,13 +3,14 @@
 #include <zenex/internal/debug.h>
 #include <zenex/lex/token_api.h>
 #include <zenex/lex/lexopt.h>
+#include <zenex/export.h>
 
 #include <memory>
 #include <unordered_map>
 
 namespace zenex {
     namespace detail {
-        class LexerImpl {
+        class ZENEX_API LexerImpl {
         public:
             explicit LexerImpl(TokenList<uint8_t> token_list, lexopt opt);
             LexerTokens TokeniseInput(std::string source);
@@ -37,7 +38,7 @@ namespace zenex {
     */
 
     template <typename TokenEnum>
-    Lexer CreateLexer(const TokenList<TokenEnum>& prev_list, const lexopt& opt) {
+    ZENEX_API inline Lexer CreateLexer(const TokenList<TokenEnum>& prev_list, const lexopt& opt) {
         TokenList<uint8_t> new_list;
         new_list.reserve(prev_list.size());
 

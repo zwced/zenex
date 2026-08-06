@@ -1,5 +1,7 @@
 #pragma once
 
+#include <zenex/export.h>
+
 #include <string>
 
-namespace zenex { struct regex { std::string pattern; }; }
+namespace zenex { struct ZENEX_API regex { std::string pattern; }; }

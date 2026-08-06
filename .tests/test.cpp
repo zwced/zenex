@@ -69,19 +69,19 @@ int main() {
     lexer->BindTokenKind(zenex::TokenKind::EndOfFile, zenex::TokenCast(TokenEnum::END_OF_FILE));
 
     zenex::LexerTokens input = lexer->TokeniseInput(R"(
-        fn main(argc: i32, argv: str[]) -> i32 {
-        /*
-        comments
-        comment
-        comments yes
-        */
-            let x: i32 = argc;
-            let y: str[] = argv;
-            let z: str = "hello";
-            let w: char = '\n';
+fn main(argc: i32, argv: str[]) -> i32 {
+/*
+comments
+comment
+comments yes
+*/
+    let x: i32 = argc;
+    let y: str[] = argv;
+    let z: str = "hello";
+    let w: char = '\n';
 
-            return 0;
-        }
+    return 0;
+}
     )");
 
     for (const auto& token : input)

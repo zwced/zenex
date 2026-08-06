@@ -1,5 +1,7 @@
 #pragma once
 
+#include <zenex/export.h>
+
 #include <vector>
 #include <string>
 #include <cstdint>
@@ -18,7 +20,7 @@ namespace zenex {
         EndOfFile,      /* sentinel end-of-input token */
     };
 
-    struct LexerToken {
+    struct ZENEX_API LexerToken {
     public:
         TokenKind kind;               /* what category of token this is — always meaningful */
         uint8_t enumeration;          /* caller's TokenEnum value — ONLY valid when kind == UserDefined */
@@ -50,7 +52,7 @@ namespace zenex {
     */
 
     template <typename T>
-    TokenList<T> NewTokenList(std::initializer_list<TokenEntry<T>> entries) {
+    inline TokenList<T> NewTokenList(std::initializer_list<TokenEntry<T>> entries) {
         return TokenList<T>(entries);
     }
 
