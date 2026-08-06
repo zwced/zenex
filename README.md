@@ -1,91 +1,77 @@
 # zenex
 
-Writing a lexer is one of those tasks that feels like it should take an afternoon and somehow eats a week. You start with a simple switch statement, then you need comment handling, then whitespace gets complicated, then someone wants string escapes, and by the time it actually works you have lost interest in the compiler you were trying to build in the first place.
+zenex is a lexer and parser library for C++20. You define a table of tokens, hand it a few options, and get back a positioned token stream, identifiers, numbers, strings, and comments already handled. A Pratt parser module sits on top of it for expression parsing.
 
-zenex is a lexer and parser library for C++20, and it treats those two jobs differently on purpose. Lexers are, relatively speaking, the easy half: a fixed set of rules, a scan loop, some bookkeeping. zenex handles that half almost entirely for you, define your tokens, hand it a handful of options, and get back a fully positioned token stream with identifiers, numbers, and strings already recognised. Parsers are where things actually get hard, where a language's real personality shows up, so that is where zenex gets out of your way and gives you a Pratt parser module to build on rather than trying to guess your grammar for you. The intent is that the part every project has to build but nobody wants to build twice gets handled fast, so the hours you have go into IR generation, optimisation passes, codegen, or an assembler backend, the parts of a language toolchain that are actually worth spending time on. The same design travels well outside of language work too. If you are building an object storage format like JSON, YAML, or TOML, zenex gives you the tokeniser layer without asking you to design a grammar around it.
+It exists because writing a lexer by hand is mostly the same handful of problems every time (keyword matching, comment skipping, string escapes, whitespace, position tracking) and none of it is where the interesting part of a language project actually lives. zenex handles that part so you can spend your time on IR generation, optimisation passes, codegen, or an assembler backend instead. It works just as well if you are not building a language at all, if you need a tokeniser for a data format like JSON, YAML, or TOML, zenex gives you that layer without making you design a grammar you do not need.
 
 ## Features
 
 - Literal keyword and symbol matching with longest match resolution
-- Regex based token matching, both for your own token rules and for skip patterns such as comments
-- Automatic identifier, number, and quoted string detection out of the box
-- Configurable whitespace handling, discard or emit as tokens
+- Regex based token matching, for your own rules and for skip patterns like comments
+- Automatic identifier, number, string, and char literal detection
+- Configurable whitespace and skipped-input handling, discard or emit as tokens
 - Lenient recovery mode or strict table validation, your choice
 - Case insensitive matching applied consistently across the whole pipeline
 - Line, column, and byte offset tracking on every token
-- Custom numeric identifiers bindable to built in token kinds, so identifiers, numbers, strings, and fallbacks can carry your own enum values too
+- Custom numeric identifiers bindable to built in token kinds
 - Enum backed or plain numeric token identifiers
-- Hookable error reporting, catch lexer and parser errors inside your own code and print, log, or recover from them however you want
+- Hookable error reporting, decide yourself what happens when something goes wrong
 - A Pratt parser module (`zenex::Pratt`) for expression parsing on top of the token stream
-- Zero external dependencies beyond the C++ standard library
+- No external dependencies beyond the C++ standard library
 
 ## Requirements
 
-- Clang, on both Windows and Linux. The build refuses to configure with any other compiler, so behaviour stays identical across platforms.
+- Clang, on both Windows and Linux
 - [Meson](https://mesonbuild.com/)
 - [Ninja](https://ninja-build.org/)
 
 ## Building on Windows
 
-### Option A: Visual Studio Build Tools (recommended)
+### Option A: Visual Studio Build Tools
 
-1. Install Python (needed for Meson and pip), then:
+1. Install Python, then:
    ```powershell
    pip install meson ninja
    ```
-2. Install Visual Studio Build Tools with the "C++ Clang tools for Windows" component. This provides `clang-cl`. You can also grab it from the command line with winget:
+2. Install Visual Studio Build Tools with the "C++ Clang tools for Windows" component, or via winget:
    ```powershell
    winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Workload.VCTools"
    ```
-3. Open a shell where `clang-cl` is on `PATH`. The Developer PowerShell shortcut installed alongside Build Tools works well.
-4. Configure, build, run:
+3. Open the Developer PowerShell shortcut that comes with Build Tools, `clang-cl` and `lib.exe` both need to be on `PATH`, and a plain PowerShell or cmd window usually will not have either.
+4. Build:
    ```powershell
    meson setup build --native-file build-cfg/windows-clang.ini
    meson compile -C build
    .\build\ztest.exe
    ```
 
-### Option B: Standalone LLVM, no Visual Studio install
+### Option B: standalone LLVM
 
-1. Install [LLVM for Windows](https://github.com/llvm/llvm-project/releases), or via winget:
+1. Install LLVM, via winget:
    ```powershell
    winget install LLVM.LLVM
    ```
-   Make sure the LLVM `bin` directory is added to `PATH` during install, or add it manually afterward.
-2. Install Python, Meson, and Ninja:
+   Make sure the LLVM `bin` directory ends up on `PATH`.
+2. Install Meson and Ninja:
    ```powershell
    pip install meson ninja
    ```
-3. Configure, build, run, same as above:
+3. Build:
    ```powershell
    meson setup build --native-file build-cfg/windows-clang.ini
    meson compile -C build
    .\build\ztest.exe
    ```
-   If `meson setup` cannot find Clang, confirm `clang.exe` or `clang-cl.exe` resolves in your shell and double check `build-cfg/windows-clang.ini` points at the right binary name for your install.
+   If `meson setup` cannot find Clang, check `clang.exe`/`clang-cl.exe` actually resolve in your shell, and that `build-cfg/windows-clang.ini` matches your install.
 
 ## Building on Linux
-
-Install Clang, Meson, and Ninja for your distribution, then configure with the Linux native file.
 
 **Arch / Manjaro**
 ```bash
 sudo pacman -S clang meson ninja
 ```
 
-**Ubuntu**
-```bash
-sudo apt update
-sudo apt install clang meson ninja-build
-```
-
-**Debian**
-```bash
-sudo apt update
-sudo apt install clang meson ninja-build
-```
-
-**Linux Mint**
+**Ubuntu / Debian / Linux Mint**
 ```bash
 sudo apt update
 sudo apt install clang meson ninja-build
@@ -96,7 +82,7 @@ sudo apt install clang meson ninja-build
 sudo dnf install clang meson ninja-build
 ```
 
-Then, from the project root, on any of the above:
+Then:
 ```bash
 meson setup build --native-file build-cfg/linux-clang.ini
 meson compile -C build
@@ -127,7 +113,7 @@ int main() {
     zenex::Lexer lexer = zenex::CreateLexer(tokens, zenex::lexopt{
         zenex::lskip {
             zenex::regex { R"(//[^\n]*)" },
-            zenex::regex { R"(/\*.*?\*/)" }
+            zenex::regex { R"(/\*[\s\S]*?\*/)" }
         },
         zenex::lkeep_whitespace,
         zenex::llenient,
@@ -140,23 +126,26 @@ int main() {
 
 ## Rule tables
 
-Build a table of exact literal rules with `NewTokenList` and `AddToken`. Bind them to your own enum, or skip the enum entirely with `zenex::NO_ENUM_TABLE` and use plain numeric identifiers.
+Build a table of literal rules with `NewTokenList` and `AddToken`, or regex rules with `AddRegexToken`. Bind them to your own enum, or skip the enum entirely with `zenex::NO_ENUM_TABLE` and use plain numeric identifiers.
 
 ```cpp
 enum class TokenEnum : uint8_t { VAR = 0, IF = 1, LET = 2 };
 
-// enum backed
+// enum backed, literal and regex rules mixed
 auto tokens = zenex::NewTokenList<TokenEnum>({
     zenex::AddToken(TokenEnum::VAR, "var", "VAR"),
-    zenex::AddToken(TokenEnum::IF, "if", "IF")
+    zenex::AddToken(TokenEnum::IF, "if", "IF"),
+    zenex::AddRegexToken(TokenEnum::LET, R"([Ll]et)", "LET")
 });
 
 // numeric, mixed with an existing enum via TokenCast
 auto more = zenex::NewTokenList<zenex::NO_ENUM_TABLE>({
     zenex::AddToken(zenex::TokenCast(TokenEnum::LET), "let", "LET"),
-    zenex::AddToken(zenex::TokenCast(1), "for", "FOR")
+    zenex::AddToken(zenex::NO_ENUM_TABLE{100}, "for", "FOR")
 });
 ```
+
+Note that a bare integer literal like `100` needs an explicit cast to whatever numeric type your table uses, `int` and `uint8_t` are not the same type as far as template deduction is concerned, so wrap it as shown above rather than passing it raw.
 
 ## Lexer options (`zenex::lexopt`)
 
@@ -164,45 +153,47 @@ Options are passed as a flat, freely ordered list.
 
 | Option | Effect |
 | --- | --- |
-| `lfast` | Enables internal scan optimisations. Line, column, and offset tracking stay fully accurate, nothing is disabled. |
+| `lfast` | Enables internal scan optimisations. Line, column, and offset tracking stay accurate. |
 | `lkeep_whitespace` | Emits whitespace runs as tokens instead of discarding them. |
-| `llenient` | Emits a single character `Fallback` token for unmatched input instead of stopping. |
-| `lstrict` | Validates the rule table at construction time and reports an error if two rules share the same literal face. Mutually exclusive with `llenient`. |
+| `lkeep_skipped` | Emits input matched by `lskip` patterns as `Skipped` tokens instead of discarding them. |
+| `llenient` | Recovers from unmatched input instead of stopping. |
+| `lstrict` | Validates the rule table at construction time, errors if two rules share the same literal face. Mutually exclusive with `llenient`. |
 | `lcase_insensitive` | Case insensitive matching across literals, skip patterns, and the strict table check. |
-| `lskip { regex{...}, ... }` | A list of regex patterns to silently discard, typically comments. |
+| `lskip { regex{...}, ... }` | Regex patterns to discard or emit, typically comments. |
 
-Passing both `llenient` and `lstrict` reports an error at construction time, since they describe opposite handling of unmatched input.
+Passing both `llenient` and `lstrict` throws at construction time.
 
 ## What the scanner does automatically
 
-Beyond your literal rules, every lexer handles these without any setup:
+Beyond your literal and regex rules, every lexer handles these without any setup:
 
 | Input | Becomes |
 | --- | --- |
-| `'...'` or `"..."`, backslash escapes respected | `TokenKind::String`, quotes included in `face` |
+| `'x'` | `TokenKind::Char`, must contain exactly one character unless `llenient` is set |
+| `"..."`, backslash escapes respected | `TokenKind::String` |
 | A run of digits, with an optional single `.` | `TokenKind::Number` |
-| A run of letters, digits, and underscores starting with a letter or underscore | `TokenKind::Identifier` |
-| Anything matching an `lskip` pattern | discarded entirely |
+| A run of letters, digits, and underscores | `TokenKind::Identifier` |
+| Anything matching an `lskip` pattern | discarded, or kept as `TokenKind::Skipped` under `lkeep_skipped` |
 | Whitespace | discarded, or kept as `TokenKind::Whitespace` under `lkeep_whitespace` |
-| Anything else, under `llenient` | `TokenKind::Fallback`, one character at a time |
+| Anything else | see error handling below |
 | End of input | a trailing `TokenKind::EndOfFile` token |
 
 ## Binding your own identifiers to built in kinds
 
-By default, tokens produced by the built in categories (`Identifier`, `Number`, `String`, `Whitespace`, `Fallback`, `EndOfFile`) carry `enumeration = 0`, since they did not come from your rule table. If your enum space needs to distinguish them, bind a value with `BindTokenKind`:
+Tokens from the built in categories (`Identifier`, `Number`, `String`, `Char`, `Whitespace`, `Skipped`, `Fallback`, `EndOfFile`) carry `enumeration = 0` by default, since they did not come from your rule table. Bind a value if you need to tell them apart in your own enum space:
 
 ```cpp
 lexer->BindTokenKind(zenex::TokenKind::Number, zenex::TokenCast(TokenEnum::NUMBER_LIT));
 lexer->BindTokenKind(zenex::TokenKind::String, zenex::TokenCast(TokenEnum::STRING_LIT));
 ```
 
-`FindMapping` reads a binding back, returning `0` for anything unbound.
+`FindMapping` reads a binding back, `0` if nothing was bound.
 
 ## Token kinds and the token structure
 
 ```cpp
 enum class TokenKind : uint8_t {
-    UserDefined, Whitespace, Skipped, Identifier, Number, String, Fallback, EndOfFile
+    UserDefined, Whitespace, Skipped, Identifier, Number, String, Char, Fallback, EndOfFile
 };
 
 struct LexerToken {
@@ -217,39 +208,74 @@ struct LexerToken {
 
 ## Error handling
 
-By default, zenex reports problems like a strict table violation or unmatched input under non-lenient mode as errors from within the library. Rather than forcing a fixed message format or unwind strategy on you, hook your own handler and decide what happens, log to a file, format for your own diagnostics UI, throw your own exception type, or anything else:
+There are two kinds of errors, and they work differently because of when they happen.
+
+**Construction time errors** are things like `lexopt`'s `llenient`/`lstrict` conflict, or a duplicate rule face caught by `lstrict`. These happen before a `Lexer` exists, so there is nothing to hook a callback onto yet, they always throw a `zenex::LexException`:
+
+```cpp
+try {
+    auto lexer = zenex::CreateLexer(tokens, zenex::lexopt{ zenex::lstrict });
+} catch (const zenex::LexException& e) {
+    std::cerr << e.error.message << '\n';
+}
+```
+
+**Runtime errors** happen inside `TokeniseInput`, an unterminated char literal, a char literal with more than one character, or a character that matches nothing at all. These go through one of three paths depending on what you set up:
+
+- `llenient` set: the lexer recovers silently, no callback, no exception.
+- A handler registered with `OnError`: your callback runs, then the lexer recovers the same way `llenient` would.
+- Neither: `TokeniseInput` throws a `zenex::LexException`.
 
 ```cpp
 lexer->OnError([](const zenex::LexError& err) {
     std::cerr << "[" << err.line << ":" << err.column << "] " << err.message << '\n';
 });
+
+auto result = lexer->TokeniseInput(source); // recovers instead of throwing now
 ```
 
-If no handler is registered, zenex falls back to its own default reporting behaviour. Adjust the snippet above to match whatever the hook's actual name and signature end up being in your implementation, this section documents the intended shape rather than a locked in API.
+`LexError` also carries a `type` field (`zenex::LexErrorType`) if you want to branch on the kind of problem instead of parsing the message string:
+
+```cpp
+lexer->OnError([](const zenex::LexError& err) {
+    switch (err.type) {
+        case zenex::LexErrorType::UnexpectedCharacter:      /* ... */ break;
+        case zenex::LexErrorType::UnterminatedCharLiteral:  /* ... */ break;
+        case zenex::LexErrorType::InvalidCharLiteralLength: /* ... */ break;
+        default: break;
+    }
+});
+```
+
+Registering a handler and setting `llenient` at the same time is fine, `llenient` just means the handler never actually fires, since nothing reaches the error path in the first place.
 
 ## Parsing: Pratt, on top of the token stream
 
-zenex ships a Pratt parser (`zenex::Pratt`, `source/pratt/parser.cpp`) for the layer above lexing. Pratt parsing, also called top down operator precedence parsing, associates each token with a prefix and/or infix parsing rule plus a binding power, and resolves precedence and associativity by comparing binding powers as it recurses. It is the standard choice for expression heavy grammars: adding a new operator is one table entry, not a new grammar production, and it composes cleanly with a hand written recursive descent parser for statements and declarations sitting above it. If you are building a language, this is almost always the right tool for expressions; if you are building a config or data format, you likely will not need it at all and can work directly off the token stream.
+zenex ships a Pratt parser (`zenex::Pratt`, `source/pratt/parser.cpp`) for the layer above lexing. Each token gets a prefix and/or infix rule plus a binding power, and precedence falls out of comparing binding powers as the parser recurses. It is the standard approach for expression heavy grammars, adding an operator is one table entry, not a new grammar rule, and it slots in cleanly under a hand written recursive descent parser for statements. If you are building a language, this is usually the right tool for expressions. If you are working on a data format, you probably will not need it.
 
 ## API reference
 
 | Symbol | Description |
 | --- | --- |
 | `NewTokenList<TokenEnum>(entries)` | Builds a token table. |
-| `AddToken(enumeration, face, as_text)` | Builds one rule entry. |
+| `AddToken(enumeration, face, as_text)` | Builds a literal rule entry. |
+| `AddRegexToken(enumeration, pattern, as_text)` | Builds a regex rule entry. |
 | `TokenCast(value)` | Converts an enum value to its numeric form. |
 | `NO_ENUM_TABLE` | Use in place of an enum type for plain numeric ids. |
-| `CreateLexer(tokens, opt)` | Builds a `zenex::Lexer`. |
-| `Lexer` | `std::shared_ptr` to the lexer instance, copyable and shareable. |
-| `Lexer::TokeniseInput(source)` | Scans source text, returns `LexerTokens`. |
-| `Lexer::IsToken(input)` | True if `input` exactly matches a rule's face. Independent of `TokeniseInput`. |
+| `CreateLexer(tokens, opt)` | Builds a `zenex::Lexer`, may throw `LexException`. |
+| `Lexer` | `std::shared_ptr` to the lexer instance. |
+| `Lexer::TokeniseInput(source)` | Scans source text, returns `LexerTokens`, may throw `LexException`. |
+| `Lexer::OnError(handler)` | Registers a runtime error callback, see above. |
+| `Lexer::IsToken(input)` | True if `input` exactly matches a rule's face. |
 | `Lexer::BindTokenKind(kind, value)` | Assigns a numeric id to a built in `TokenKind`. |
 | `Lexer::FindMapping(kind)` | Reads back a bound id, `0` if unbound. |
 | `lexopt{ ... }` | Behaviour flags, see table above. |
-| `lskip{ regex{...}, ... }` | Discard patterns. |
+| `lskip{ regex{...}, ... }` | Discard or expose patterns. |
 | `regex{ pattern }` | Wraps one pattern string. |
 | `TokenKind` | Category enum for a token. |
 | `LexerToken` / `LexerTokens` | A token, and a vector of them. |
+| `LexError` / `LexErrorType` | Runtime error payload and category. |
+| `LexException` | Thrown when there is no handler and the lexer is not lenient. |
 
 ## License
 MIT

@@ -2,13 +2,11 @@
 
 #include <zenex/flag.h>
 #include <zenex/regex.h>
+#include <zenex/lex/errors.h>
 
 #include <vector>
-#include <string>
 #include <utility>
-#include <stdexcept>
 #include <type_traits>
-#include <iostream>
 
 namespace zenex {
     struct lskip {
@@ -48,22 +46,13 @@ namespace zenex {
         void apply(lskip const& s)       { this->skip_patterns = s.patterns; }
 
         void apply(llenient_t) {
-            if (strict) {
-                std::cout << "zenex error: llenient conflicts with lstrict" << std::endl;
-
-                std::exit(1);
-            }
-
-            lenient = true;
+             if (strict) throw LexException({ LexErrorType::ConflictingOptions, "zenex: llenient conflicts with lstrict" });
+             lenient = true;
         }
 
-        void apply(lstrict_t) {
-            if (lenient) {
-                std::cout << "zenex error: lstrict conflicts with llenient" << std::endl;
-
-                std::exit(1);
-            }
-            strict = true;
+         void apply(lstrict_t) {
+             if (lenient) throw LexException({ LexErrorType::ConflictingOptions, "zenex: lstrict conflicts with llenient" });
+             strict = true;
         }
     };
 }

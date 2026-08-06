@@ -19,16 +19,17 @@ namespace zenex {
                 for (size_t i = 0; i < this->token_list.size(); ++i) {
                     for (size_t j = i + 1; j < this->token_list.size(); ++j) {
                         if (faces_equal(this->token_list[i].face, this->token_list[j].face)) {
-                            std::cout << "zenex error: lstrict - duplicate token face '" << this->token_list[i].face + "' found in rule table" << std::endl;
-
-                            std::exit(1);
+                            throw LexException({
+                                LexErrorType::DuplicateTokenFace,
+                                "zenex: lstrict - duplicate token face '" + this->token_list[i].face + "' found in rule table"
+                            });
                         }
                     }
                 }
             }
         }
 
-        LexerTokens detail::LexerImpl::TokeniseInput(std::string source) {
+        LexerTokens LexerImpl::TokeniseInput(std::string source) {
             LexerTokens result;
             size_t pos = 0;
             uint32_t line = 1;
@@ -124,7 +125,7 @@ namespace zenex {
                 for (const auto& entry : this->token_list) {
                     size_t len = 0;
 
-                    if (entry.is_regex) {       /* if it is a regex token */
+                    if (entry.is_regex) {
                         auto flags = std::regex::ECMAScript;
                         if (this->opt.case_insensitive) flags |= std::regex::icase;
 
@@ -134,7 +135,7 @@ namespace zenex {
 
                         if (std::regex_search(remaining, m, re, std::regex_constants::match_continuous))
                             len = static_cast<size_t>(m.length(0));
-                    } else {                    /* if it is a basic token */
+                    } else {
                         if (starts_with(pos, entry.face))
                             len = entry.face.size();
                     }
@@ -172,13 +173,12 @@ namespace zenex {
 
                     while (i < source.size() && source[i] != '\'') {
                         if (source[i] == '\\' && i + 1 < source.size()) {
-                            i += 2;   /* escape sequence counts as one char */
+                            i += 2;
                         } else {
                             ++i;
                         }
                         ++decoded_chars;
 
-                        /* newline inside a char literal without closing quote = malformed */
                         if (i < source.size() && source[i - 1] == '\n') {
                             unterminated = true;
                             break;
@@ -188,23 +188,41 @@ namespace zenex {
                     if (i >= source.size() || unterminated) {
                         if (this->opt.lenient) {
                             /* fall through to fallback handling below by not consuming */
+                        } else if (this->error_handler) {
+                            this->error_handler({
+                                LexErrorType::UnterminatedCharLiteral,
+                                "zenex: unterminated char literal",
+                                sl, sc, static_cast<uint32_t>(start)
+                            });
+                            /* fall through to fallback handling below by not consuming, same recovery as lenient */
                         } else {
-                            std::cout << "zenex error: unterminated char literal"
-                                        << (this->opt.fast ? "" : " at line " + std::to_string(sl) + ", column " + std::to_string(sc))
-                                        << std::endl;
-                            std::exit(0);
+                            throw LexException({
+                                LexErrorType::UnterminatedCharLiteral,
+                                "zenex: unterminated char literal",
+                                sl, sc, static_cast<uint32_t>(start)
+                            });
                         }
                     } else {
-                        ++i; /* include closing quote */
+                        ++i;
                         size_t len = i - start;
 
-                        if (decoded_chars != 1 && !this->opt.lenient) {
-                            std::cout << "zenex error: char literal '"
-                                        << source.substr(start, len)
-                                        << "' must contain exactly one character"
-                                        << (this->opt.fast ? "" : " at line " + std::to_string(sl) + ", column " + std::to_string(sc))
-                                        << std::endl;
-                            std::exit(0);
+                        if (decoded_chars != 1) {
+                            if (this->opt.lenient) {
+                                /* accept anyway, existing behavior */
+                            } else if (this->error_handler) {
+                                this->error_handler({
+                                    LexErrorType::InvalidCharLiteralLength,
+                                    "zenex: char literal '" + source.substr(start, len) + "' must contain exactly one character",
+                                    sl, sc, static_cast<uint32_t>(start)
+                                });
+                                /* accept anyway too, same recovery as lenient */
+                            } else {
+                                throw LexException({
+                                    LexErrorType::InvalidCharLiteralLength,
+                                    "zenex: char literal '" + source.substr(start, len) + "' must contain exactly one character",
+                                    sl, sc, static_cast<uint32_t>(start)
+                                });
+                            }
                         }
 
                         advance(len);
@@ -227,10 +245,10 @@ namespace zenex {
                     uint32_t sl = line, sc = column;
                     size_t i = pos + 1;
                     while (i < source.size() && source[i] != quote) {
-                        if (source[i] == '\\' && i + 1 < source.size()) i += 2;   /* skip escaped char */
+                        if (source[i] == '\\' && i + 1 < source.size()) i += 2;
                         else ++i;
                     }
-                    if (i < source.size()) ++i;   /* include closing quote if found */
+                    if (i < source.size()) ++i;
                     size_t len = i - start;
 
                     advance(len);
@@ -310,7 +328,28 @@ namespace zenex {
                         static_cast<uint32_t>(start), static_cast<uint32_t>(pos)
                     });
                 } else {
-                    std::cout << "zenex error: unexpected character '" << std::string(1, source[pos]) + "'" << (this->opt.fast ? "" : " at line " + std::to_string(line) + ", column " + std::to_string(column)) << std::endl; std::exit(0);
+                    LexError err{
+                        LexErrorType::UnexpectedCharacter,
+                        "zenex: unexpected character '" + std::string(1, source[pos]) + "'",
+                        line, column, static_cast<uint32_t>(pos)
+                    };
+
+                    if (this->error_handler) {
+                        this->error_handler(err);
+
+                        uint32_t sl = line, sc = column;
+                        size_t start = pos;
+                        std::string bad(1, source[pos]);
+                        advance(1);
+                        result.push_back({
+                            TokenKind::Fallback, this->FindMapping(TokenKind::Fallback),
+                            bad, "FALLBACK",
+                            sl, sc,
+                            static_cast<uint32_t>(start), static_cast<uint32_t>(pos)
+                        });
+                    } else {
+                        throw LexException(err);
+                    }
                 }
             }
 
@@ -341,6 +380,10 @@ namespace zenex {
                     return true;
             }
             return false;
+        }
+
+        void LexerImpl::OnError(LexErrorHandler handler) {
+            this->error_handler = std::move(handler);
         }
     }
 }

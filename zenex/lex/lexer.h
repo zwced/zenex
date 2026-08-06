@@ -3,6 +3,7 @@
 #include <zenex/internal/debug.h>
 #include <zenex/lex/token_api.h>
 #include <zenex/lex/lexopt.h>
+#include <zenex/lex/errors.h>
 #include <zenex/export.h>
 
 #include <memory>
@@ -20,9 +21,12 @@ namespace zenex {
 
             bool IsToken(std::string input);
 
+            void OnError(LexErrorHandler handler);
+
             ZDEBUG_METHOD __ZDebugPrint();
 
         private:
+            LexErrorHandler error_handler;
             std::unordered_map<TokenKind, uint8_t> TokenMappings;
 
             TokenList<uint8_t> token_list;

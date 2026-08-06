@@ -50,14 +50,37 @@ int main() {
         zenex::AddToken(TokenEnum::SEMICOLON, ";", "SEMICOLON"),
     });
 
-    zenex::Lexer lexer = zenex::CreateLexer(tokens, zenex::lexopt{
-        zenex::lskip {
-            zenex::regex { R"(//[^\n]*)" },
-            zenex::regex { R"(/\*.*?\*/)" },
-            zenex::regex { R"(/\*[\s\S]*?\*/)" }
-        },
-        zenex::llenient,
-        zenex::lkeep_skipped
+    zenex::Lexer lexer;
+    try {
+        lexer = zenex::CreateLexer(tokens, zenex::lexopt{
+            zenex::lskip {
+                zenex::regex { R"(//[^\n]*)" },
+                zenex::regex { R"(/\*.*?\*/)" },
+                zenex::regex { R"(/\*[\s\S]*?\*/)" }
+            },
+            zenex::lkeep_skipped,
+            zenex::lstrict,
+            zenex::llenient,   // deliberately conflicting, to demonstrate
+        });
+    } catch (const zenex::LexException& e) {
+        std::cerr << "failed to create lexer: " << e.error.message << '\n';
+        return 1;
+    }
+
+    lexer->OnError([](const zenex::LexError& err) {
+        switch (err.type) {
+            case zenex::LexErrorType::UnexpectedCharacter:
+                std::cerr << "unexpected char at " << err.line << ":" << err.column << '\n';
+                break;
+            case zenex::LexErrorType::UnterminatedCharLiteral:
+                std::cerr << "unterminated ' at " << err.line << ":" << err.column << '\n';
+                break;
+            case zenex::LexErrorType::InvalidCharLiteralLength:
+                std::cerr << "char literal too long at " << err.line << ":" << err.column << '\n';
+                break;
+            default:
+                std::cerr << err.message << '\n';
+        }
     });
 
     lexer->BindTokenKind(zenex::TokenKind::Skipped, zenex::TokenCast(TokenEnum::SKIPPED));
@@ -68,23 +91,28 @@ int main() {
     lexer->BindTokenKind(zenex::TokenKind::Char, zenex::TokenCast(TokenEnum::TYPE_CHAR));
     lexer->BindTokenKind(zenex::TokenKind::EndOfFile, zenex::TokenCast(TokenEnum::END_OF_FILE));
 
-    zenex::LexerTokens input = lexer->TokeniseInput(R"(
+    zenex::LexerTokens output;
+    try {
+        output = lexer->TokeniseInput(R"(
 fn main(argc: i32, argv: str[]) -> i32 {
-/*
-comments
-comment
-comments yes
-*/
+    /*
+    comments
+    comment
+    comments yes
+    */
     let x: i32 = argc;
     let y: str[] = argv;
     let z: str = "hello";
-    let w: char = '\n';
+    let w: char = 'ee';
 
     return 0;
 }
     )");
+    } catch (const zenex::LexException& e) {
+        std::cerr << e.error.message << '\n';
+    }
 
-    for (const auto& token : input)
+    for (const auto& token : output)
         std::cout << token.as_text << ": " << token.face << '\n';
 
     for (;;);
