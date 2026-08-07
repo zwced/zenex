@@ -59,8 +59,7 @@ int main() {
                 zenex::regex { R"(/\*[\s\S]*?\*/)" }
             },
             zenex::lkeep_skipped,
-            zenex::lstrict,
-            zenex::llenient,   // deliberately conflicting, to demonstrate
+            zenex::llenient,
         });
     } catch (const zenex::LexException& e) {
         std::cerr << "failed to create lexer: " << e.error.message << '\n';

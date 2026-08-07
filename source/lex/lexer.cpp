@@ -1,11 +1,12 @@
 #include "zenex/lex/token_api.h"
 #include <zenex/lex/lexer.h>
-#include <iostream>
 #include <regex>
 
 namespace zenex {
     namespace detail {
-        LexerImpl::LexerImpl(TokenList<uint8_t> token_list, lexopt opt) : token_list(std::move(token_list)), opt(std::move(opt)) {
+        LexerImpl::LexerImpl(TokenList<uint8_t> token_list, lexopt opt)
+            : token_list(std::move(token_list)), opt(std::move(opt)) {
+
             if (this->opt.strict) {
                 auto faces_equal = [ci = this->opt.case_insensitive](const std::string& a, const std::string& b) {
                     if (!ci) return a == b;
@@ -27,9 +28,27 @@ namespace zenex {
                     }
                 }
             }
+
+            /* compile every regex pattern exactly once, here, instead of
+               reconstructing std::regex from the pattern string on every
+               scan iteration inside TokeniseInput */
+            auto flags = std::regex::ECMAScript;
+            if (this->opt.case_insensitive) flags |= std::regex::icase;
+
+            this->compiled_skip_patterns.reserve(this->opt.skip_patterns.size());
+            for (const auto& pat : this->opt.skip_patterns)
+                this->compiled_skip_patterns.emplace_back(pat.pattern, flags);
+
+            this->compiled_rule_patterns.reserve(this->token_list.size());
+            for (const auto& entry : this->token_list) {
+                if (entry.is_regex)
+                    this->compiled_rule_patterns.emplace_back(entry.face, flags);
+                else
+                    this->compiled_rule_patterns.emplace_back(); /* placeholder, never used for literal rules */
+            }
         }
 
-        LexerTokens LexerImpl::TokeniseInput(std::string source) {
+        LexerTokens detail::LexerImpl::TokeniseInput(std::string source) {
             LexerTokens result;
             size_t pos = 0;
             uint32_t line = 1;
@@ -59,25 +78,23 @@ namespace zenex {
 
             auto starts_with = [&](size_t at, const std::string& lit) {
                 if (at + lit.size() > source.size()) return false;
-
                 for (size_t i = 0; i < lit.size(); ++i)
                     if (!ci_equal(source[at + i], lit[i])) return false;
-
                 return true;
             };
 
+            auto is_word_char = [](char c) {
+                return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+            };
+
             while (pos < source.size()) {
-                /* skip regex patterns */
+                /* skip patterns, precompiled, matched by iterator range instead of substr copy */
                 bool skipped = false;
-                for (const auto& pat : this->opt.skip_patterns) {
-                    auto flags = std::regex::ECMAScript;
-                    if (this->opt.case_insensitive) flags |= std::regex::icase;
-
-                    std::regex re(pat.pattern, flags);
+                for (size_t k = 0; k < this->compiled_skip_patterns.size(); ++k) {
                     std::smatch m;
-                    std::string remaining = source.substr(pos);
-
-                    if (std::regex_search(remaining, m, re, std::regex_constants::match_continuous)) {
+                    if (std::regex_search(source.cbegin() + static_cast<std::ptrdiff_t>(pos), source.cend(),
+                                           m, this->compiled_skip_patterns[k],
+                                           std::regex_constants::match_continuous)) {
                         size_t start = pos;
                         uint32_t sl = line, sc = column;
                         size_t len = static_cast<size_t>(m.length(0));
@@ -99,7 +116,7 @@ namespace zenex {
                 }
                 if (skipped) continue;
 
-                /* handle whitespace on all accounts */
+                /* whitespace */
                 if (std::isspace(static_cast<unsigned char>(source[pos]))) {
                     size_t start = pos;
                     uint32_t sl = line, sc = column;
@@ -118,26 +135,34 @@ namespace zenex {
                     continue;
                 }
 
-                /* user defined token matching */
+                /* user defined token matching, longest match wins, literal
+                   rules require a word boundary if they start with a word
+                   character, so "var" cannot swallow the start of "variable" */
                 const TokenEntry<uint8_t>* best = nullptr;
                 size_t best_len = 0;
 
-                for (const auto& entry : this->token_list) {
+                for (size_t i = 0; i < this->token_list.size(); ++i) {
+                    const auto& entry = this->token_list[i];
                     size_t len = 0;
 
                     if (entry.is_regex) {
-                        auto flags = std::regex::ECMAScript;
-                        if (this->opt.case_insensitive) flags |= std::regex::icase;
-
-                        std::regex re(entry.face, flags);
                         std::smatch m;
-                        std::string remaining = source.substr(pos);
-
-                        if (std::regex_search(remaining, m, re, std::regex_constants::match_continuous))
+                        if (
+                            std::regex_search(source.cbegin() + static_cast<std::ptrdiff_t>(pos),
+                                source.cend(),
+                                m, this->compiled_rule_patterns[i],
+                                std::regex_constants::match_continuous
+                            ))
                             len = static_cast<size_t>(m.length(0));
                     } else {
-                        if (starts_with(pos, entry.face))
-                            len = entry.face.size();
+                        if (starts_with(pos, entry.face)) {
+                            bool starts_word = !entry.face.empty() && is_word_char(entry.face.front());
+                            bool boundary_ok = !starts_word ||
+                                (pos + entry.face.size() >= source.size()) ||
+                                !is_word_char(source[pos + entry.face.size()]);
+                            if (boundary_ok)
+                                len = entry.face.size();
+                        }
                     }
 
                     if (len > best_len) {
@@ -194,7 +219,6 @@ namespace zenex {
                                 "zenex: unterminated char literal",
                                 sl, sc, static_cast<uint32_t>(start)
                             });
-                            /* fall through to fallback handling below by not consuming, same recovery as lenient */
                         } else {
                             throw LexException({
                                 LexErrorType::UnterminatedCharLiteral,
@@ -208,14 +232,13 @@ namespace zenex {
 
                         if (decoded_chars != 1) {
                             if (this->opt.lenient) {
-                                /* accept anyway, existing behavior */
+                                /* accept anyway */
                             } else if (this->error_handler) {
                                 this->error_handler({
                                     LexErrorType::InvalidCharLiteralLength,
                                     "zenex: char literal '" + source.substr(start, len) + "' must contain exactly one character",
                                     sl, sc, static_cast<uint32_t>(start)
                                 });
-                                /* accept anyway too, same recovery as lenient */
                             } else {
                                 throw LexException({
                                     LexErrorType::InvalidCharLiteralLength,
@@ -312,7 +335,7 @@ namespace zenex {
                     continue;
                 }
 
-                /* handle no rule matched */
+                /* no rule matched */
                 if (this->opt.lenient) {
                     uint32_t sl = line, sc = column;
                     size_t start = pos;
@@ -353,7 +376,7 @@ namespace zenex {
                 }
             }
 
-            /* add EOF token */
+            /* EOF token */
             result.push_back({
                 TokenKind::EndOfFile, this->FindMapping(TokenKind::EndOfFile), "", "EOF", line, column,
                 static_cast<uint32_t>(pos), static_cast<uint32_t>(pos)

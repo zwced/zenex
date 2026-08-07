@@ -7,6 +7,7 @@
 #include <zenex/export.h>
 
 #include <memory>
+#include <regex>
 #include <unordered_map>
 
 namespace zenex {
@@ -31,6 +32,9 @@ namespace zenex {
 
             TokenList<uint8_t> token_list;
             lexopt opt;
+
+            std::vector<std::regex> compiled_skip_patterns;
+            std::vector<std::regex> compiled_rule_patterns;
         };
     }
 
