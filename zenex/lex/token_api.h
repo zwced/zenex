@@ -50,7 +50,6 @@ namespace zenex {
         @description: method to make a token list
         @returns -> zenex::TokenList<YOUR_ENUM>
     */
-
     template <typename T>
     inline TokenList<T> NewTokenList(std::initializer_list<TokenEntry<T>> entries) {
         return TokenList<T>(entries);
@@ -60,7 +59,6 @@ namespace zenex {
         @description: method to add a token to a token list
         @returns -> zenex::TokenEntry<YOUR_ENUM>
     */
-
     template <typename TokenEnum>
     TokenEntry<TokenEnum> AddToken(TokenEnum enumeration, std::string face, std::string as_text) {
         return { enumeration, face, as_text, false };
@@ -75,7 +73,6 @@ namespace zenex {
         @description: turns ambiguous token/integer type to a measured integer type
         @returns -> uint8_t
     */
-
     template <typename TokenEnum>
     constexpr uint8_t TokenCast(TokenEnum castee) {
         return static_cast<uint8_t>(castee);

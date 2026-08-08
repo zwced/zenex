@@ -1,5 +1,5 @@
 project('zenex', 'cpp',
-    version      : '0.1.2',
+    version      : '1.0.0',
     license      : 'MIT',
     meson_version: '>=1.0.0',
     default_options: [
@@ -35,13 +35,6 @@ else
     shared_ext  = '.so'
     exe_ext     = ''
 endif
-
-lib_names = {
-    'zenex_lex'        : 'zenex_lex',
-    'zenex_pratt'      : 'zenex_pratt',
-    'zenex_diagnostics': 'zenex_diag',
-    'zenex'            : 'zenex',
-}
 
 copy_rename_script = '''
 import shutil, os, sys
@@ -110,93 +103,52 @@ clang_tidy   = find_program('clang-tidy', required : false)
 
 zenex_inc = include_directories('.')
 
-zenex_lex_sources = files(
+zenex_sources = files(
     'source/lex/lexer.cpp',
-    'source/lex/lexer_debug.cpp',
 )
 
-zenex_pratt_sources = files(
-    'source/pratt/parser.cpp',
-)
-
-zenex_diagnostics_sources = files(
-    'source/diagnostics/engine.cpp',
-)
-
-zenex_all_sources = zenex_lex_sources + zenex_pratt_sources + zenex_diagnostics_sources
-
-# -DZENEX_BUILDING_DLL flips ZENEX_API to dllexport while compiling zenex's
-# own sources. Without this, every translation unit sees dllimport, including
-# the one defining the symbols, which is the root cause of the earlier
-# "must have external linkage" and "redeclared without dllimport" errors.
 building_dll_args = ['-DZENEX_BUILDING_DLL']
 
-zenex_lex_both   = both_libraries('zenex_lex', zenex_lex_sources,
-    include_directories : zenex_inc, cpp_args : building_dll_args, install : false)
-zenex_pratt_both = both_libraries('zenex_pratt', zenex_pratt_sources,
-    include_directories : zenex_inc, cpp_args : building_dll_args, install : false)
-zenex_diag_both  = both_libraries('zenex_diagnostics', zenex_diagnostics_sources,
-    include_directories : zenex_inc, cpp_args : building_dll_args, install : false)
-zenex_both       = both_libraries('zenex', zenex_all_sources,
-    include_directories : zenex_inc, cpp_args : building_dll_args, install : true)
+zenex_static = static_library('zenex_static', zenex_sources,
+    include_directories : zenex_inc,
+    cpp_args            : building_dll_args,
+    install             : true,
+)
 
-# -DZENEX_STATIC tells consumers linking the static variant to drop the
-# dllimport/dllexport attribute entirely, since a static lib has no DLL
-# boundary to import across.
+zenex_dynamic = shared_library('zenex_dynamic', zenex_sources,
+    include_directories : zenex_inc,
+    cpp_args            : building_dll_args,
+    install             : true,
+)
+
 static_consume_args = ['-DZENEX_STATIC']
 
-zenex_lex_dep = declare_dependency(
-    link_with           : zenex_lex_both.get_static_lib(),
-    include_directories : zenex_inc,
-    compile_args        : static_consume_args,
-)
-zenex_pratt_dep = declare_dependency(
-    link_with           : zenex_pratt_both.get_static_lib(),
-    include_directories : zenex_inc,
-    compile_args        : static_consume_args,
-)
-zenex_diag_dep = declare_dependency(
-    link_with           : zenex_diag_both.get_static_lib(),
-    include_directories : zenex_inc,
-    compile_args        : static_consume_args,
-)
 zenex_dep = declare_dependency(
-    link_with           : zenex_both.get_static_lib(),
+    link_with           : zenex_static,
     include_directories : zenex_inc,
     compile_args        : static_consume_args,
 )
 
-all_both_libs = {
-    'zenex_lex'        : zenex_lex_both,
-    'zenex_pratt'      : zenex_pratt_both,
-    'zenex_diagnostics': zenex_diag_both,
-    'zenex'            : zenex_both,
-}
+custom_target('zenex_static_dist',
+    input  : zenex_static,
+    output : 'zenex_static.stamp',
+    command: [python, '-c', copy_rename_script, '@INPUT@', dist_dir,
+              'zenex_' + plat_suffix + '_static' + static_ext, '@OUTPUT@'],
+    build_by_default: true,
+)
 
-foreach key, both_lib : all_both_libs
-    base = lib_names[key]
-
-    custom_target(key + '_static_dist',
-        input  : both_lib.get_static_lib(),
-        output : key + '_static.stamp',
-        command: [python, '-c', copy_rename_script, '@INPUT@', dist_dir,
-                  base + '_' + plat_suffix + '_static' + static_ext, '@OUTPUT@'],
-        build_by_default: true,
-    )
-
-    custom_target(key + '_shared_dist',
-        input  : both_lib.get_shared_lib(),
-        output : key + '_shared.stamp',
-        command: [python, '-c', copy_rename_script, '@INPUT@', dist_dir,
-                  base + '_' + plat_suffix + '_shared' + shared_ext, '@OUTPUT@'],
-        build_by_default: true,
-    )
-endforeach
+custom_target('zenex_dynamic_dist',
+    input  : zenex_dynamic,
+    output : 'zenex_dynamic.stamp',
+    command: [python, '-c', copy_rename_script, '@INPUT@', dist_dir,
+              'zenex_' + plat_suffix + '_dynamic' + shared_ext, '@OUTPUT@'],
+    build_by_default: true,
+)
 
 install_subdir('zenex', install_dir : get_option('includedir'))
 
 pkg = import('pkgconfig')
-pkg.generate(zenex_both.get_static_lib(),
+pkg.generate(zenex_static,
     name       : 'zenex',
     description: 'A lexer and parser library for C++20',
     version    : meson.project_version(),

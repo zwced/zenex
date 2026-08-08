@@ -4,9 +4,7 @@
 
 namespace zenex {
     namespace detail {
-        LexerImpl::LexerImpl(TokenList<uint8_t> token_list, lexopt opt)
-            : token_list(std::move(token_list)), opt(std::move(opt)) {
-
+        LexerImpl::LexerImpl(TokenList<uint8_t> token_list, lexopt opt) : token_list(std::move(token_list)), opt(std::move(opt)) {
             if (this->opt.strict) {
                 auto faces_equal = [ci = this->opt.case_insensitive](const std::string& a, const std::string& b) {
                     if (!ci) return a == b;
@@ -29,9 +27,6 @@ namespace zenex {
                 }
             }
 
-            /* compile every regex pattern exactly once, here, instead of
-               reconstructing std::regex from the pattern string on every
-               scan iteration inside TokeniseInput */
             auto flags = std::regex::ECMAScript;
             if (this->opt.case_insensitive) flags |= std::regex::icase;
 
@@ -44,7 +39,7 @@ namespace zenex {
                 if (entry.is_regex)
                     this->compiled_rule_patterns.emplace_back(entry.face, flags);
                 else
-                    this->compiled_rule_patterns.emplace_back(); /* placeholder, never used for literal rules */
+                    this->compiled_rule_patterns.emplace_back();
             }
         }
 
@@ -92,9 +87,12 @@ namespace zenex {
                 bool skipped = false;
                 for (size_t k = 0; k < this->compiled_skip_patterns.size(); ++k) {
                     std::smatch m;
-                    if (std::regex_search(source.cbegin() + static_cast<std::ptrdiff_t>(pos), source.cend(),
-                                           m, this->compiled_skip_patterns[k],
-                                           std::regex_constants::match_continuous)) {
+                    if (
+                        std::regex_search(source.cbegin() + static_cast<std::ptrdiff_t>(pos),
+                        source.cend(), m,
+                        this->compiled_skip_patterns[k], std::regex_constants::match_continuous
+                        ))
+                    {
                         size_t start = pos;
                         uint32_t sl = line, sc = column;
                         size_t len = static_cast<size_t>(m.length(0));

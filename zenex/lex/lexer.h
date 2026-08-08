@@ -1,6 +1,5 @@
 #pragma once
 
-#include <zenex/internal/debug.h>
 #include <zenex/lex/token_api.h>
 #include <zenex/lex/lexopt.h>
 #include <zenex/lex/errors.h>
@@ -24,8 +23,6 @@ namespace zenex {
 
             void OnError(LexErrorHandler handler);
 
-            ZDEBUG_METHOD __ZDebugPrint();
-
         private:
             LexErrorHandler error_handler;
             std::unordered_map<TokenKind, uint8_t> TokenMappings;
@@ -44,7 +41,6 @@ namespace zenex {
         @description: method to create a lexer, by default provides a shared pointer to a LexerImpl
         @return: std::shared_ptr<detail::LexerImpl>
     */
-
     template <typename TokenEnum>
     ZENEX_API inline Lexer CreateLexer(const TokenList<TokenEnum>& prev_list, const lexopt& opt) {
         TokenList<uint8_t> new_list;

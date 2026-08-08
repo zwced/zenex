@@ -118,9 +118,6 @@ int main() {
     std::cout << "  IsToken(\"for\")  = " << l->IsToken("for") << "\n";
     std::cout << "  IsToken(\"nope\") = " << l->IsToken("nope") << "\n";
 
-    /* debug dump of the lexer's own configuration */
-    l->__ZDebugPrint();
-
     /* empty and whitespace-only inputs */
     RunCase(l, "empty input", "");
     RunCase(l, "whitespace only", "   \n\t  ");
