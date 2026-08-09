@@ -1,5 +1,5 @@
 project('zenex', 'cpp',
-    version      : '1.0.0',
+    version      : '1.0.1',
     license      : 'MIT',
     meson_version: '>=1.0.0',
     default_options: [
@@ -104,7 +104,7 @@ clang_tidy   = find_program('clang-tidy', required : false)
 zenex_inc = include_directories('.')
 
 zenex_sources = files(
-    'source/lex/lexer.cpp',
+    'source/lexer.cpp',
 )
 
 building_dll_args = ['-DZENEX_BUILDING_DLL']
@@ -129,11 +129,14 @@ zenex_dep = declare_dependency(
     compile_args        : static_consume_args,
 )
 
+ver = meson.project_version()
+name_prefix = 'zenex-' + ver + '-' + plat_suffix
+
 custom_target('zenex_static_dist',
     input  : zenex_static,
     output : 'zenex_static.stamp',
     command: [python, '-c', copy_rename_script, '@INPUT@', dist_dir,
-              'zenex_' + plat_suffix + '_static' + static_ext, '@OUTPUT@'],
+              name_prefix + '-static' + static_ext, '@OUTPUT@'],
     build_by_default: true,
 )
 
@@ -141,7 +144,7 @@ custom_target('zenex_dynamic_dist',
     input  : zenex_dynamic,
     output : 'zenex_dynamic.stamp',
     command: [python, '-c', copy_rename_script, '@INPUT@', dist_dir,
-              'zenex_' + plat_suffix + '_dynamic' + shared_ext, '@OUTPUT@'],
+              name_prefix + '-dynamic' + shared_ext, '@OUTPUT@'],
     build_by_default: true,
 )
 
@@ -163,7 +166,7 @@ custom_target('test_dist',
     input  : zenex_test,
     output : 'test.stamp',
     command: [python, '-c', copy_rename_script, '@INPUT@', test_dir,
-              'test_' + plat_suffix + exe_ext, '@OUTPUT@'],
+              'test-' + ver + '-' + plat_suffix + exe_ext, '@OUTPUT@'],
     build_by_default: true,
 )
 
