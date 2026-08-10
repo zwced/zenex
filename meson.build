@@ -1,5 +1,5 @@
 project('zenex', 'cpp',
-    version      : '1.0.1',
+    version      : '1.0.2',
     license      : 'MIT',
     meson_version: '>=1.0.0',
     default_options: [
@@ -127,6 +127,11 @@ zenex_dep = declare_dependency(
     link_with           : zenex_static,
     include_directories : zenex_inc,
     compile_args        : static_consume_args,
+)
+
+zenex_dynamic_dep = declare_dependency(
+    link_with           : zenex_dynamic,
+    include_directories : zenex_inc,
 )
 
 ver = meson.project_version()
