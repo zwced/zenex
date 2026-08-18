@@ -5,6 +5,7 @@
 #include <functional>
 #include <unordered_map>
 #include <stdexcept>
+#include <vector>
 
 namespace zenex {
     template <typename Node> class NodePrinter;
@@ -22,19 +23,44 @@ namespace zenex {
             @description: appends raw text to the output with no trailing newline
             @returns -> void
         */
-        void Write(const std::string& s) { out << s; }
+        void Write(const std::string& s) {
+            this->out << s;
+        }
 
         /*
             @description: appends text followed by a newline
             @returns -> void
         */
-        void WriteLine(const std::string& s) { out << s << '\n'; }
+        void WriteLine(const std::string& s) {
+            this->out << s << '\n';
+        }
 
         /*
             @description: recurses into a child node using whatever printer is registered for its kind
             @returns -> void
         */
-        void PrintChild(const Node& child) { printer.PrintNode(child, *this); }
+        void PrintChild(const Node& child) {
+            this->printer.PrintNode(child, *this);
+        }
+
+        /*
+            @description: pushes a child's positional state onto the formatting stack and writes the tree prefix
+            @returns -> void
+        */
+        void PushChild(bool is_last) {
+            this->Write(this->BuildPrefix(is_last));
+            this->is_last_stack.push_back(is_last);
+        }
+
+        /*
+            @description: pops the last child state from the formatting stack
+            @returns -> void
+        */
+        void PopChild() {
+            if (!this->is_last_stack.empty()) {
+                this->is_last_stack.pop_back();
+            }
+        }
 
         /*
             @description: prints a homogeneous list of children with tree connectors, handling the is-last-one logic automatically
@@ -45,10 +71,9 @@ namespace zenex {
             size_t i = 0, n = children.size();
             for (const auto& child : children) {
                 bool is_last = (++i == n);
-                Write(Pad() + Connector(is_last));
-                Indent();
-                PrintChild(child);
-                Dedent();
+                this->PushChild(is_last);
+                this->PrintChild(child);
+                this->PopChild();
             }
         }
 
@@ -60,8 +85,10 @@ namespace zenex {
         void PrintList(const Container& children, Sep separator) {
             size_t i = 0, n = children.size();
             for (const auto& child : children) {
-                PrintChild(child);
-                if (++i != n) Write(separator);
+                this->PrintChild(child);
+                if (++i != n) {
+                    this->Write(separator);
+                }
             }
         }
 
@@ -70,35 +97,32 @@ namespace zenex {
             @returns -> void
         */
         void Field(const std::string& label, const std::string& value) {
-            Write(label + "=" + value + " ");
+            this->Write(label + "=" + value + " ");
         }
 
         /*
-            @description: returns the current indentation depth
+            @description: returns the current indentation depth based on the stack size
             @returns -> int
         */
-        int Depth() const { return depth; }
+        int Depth() const {
+            return static_cast<int>(this->is_last_stack.size());
+        }
 
         /*
-            @description: increases indentation depth
-            @returns -> void
-        */
-        void Indent(int n = 1) { depth += n; }
-
-        /*
-            @description: decreases indentation depth
-            @returns -> void
-        */
-        void Dedent(int n = 1) { depth -= n; }
-
-        /*
-            @description: builds the current indentation prefix
+            @description: builds backwall lines for parent branches and connectors for the current level
             @returns -> std::string
         */
-        std::string Pad(const std::string& unit = "  ") const {
-            std::string s;
-            for (int i = 0; i < depth; ++i) s += unit;
-            return s;
+        std::string BuildPrefix(bool is_last) const {
+            std::string prefix;
+            for (bool parent_is_last : this->is_last_stack) {
+                if (parent_is_last) {
+                    prefix += "    ";
+                } else {
+                    prefix += "\xE2\x94\x82   "; /* "│   " */
+                }
+            }
+            prefix += this->Connector(is_last);
+            return prefix;
         }
 
         /*
@@ -113,12 +137,24 @@ namespace zenex {
             @description: returns the accumulated output, consuming the internal buffer
             @returns -> std::string
         */
-        std::string TakeOutput() { return out.str(); }
+        std::string TakeOutput() {
+            return this->out.str();
+        }
+
+        /*
+            @description: clears the internal string stream buffer and depth state, allowing context reuse
+            @returns -> void
+        */
+        void Clear() {
+            this->out.str("");
+            this->out.clear();
+            this->is_last_stack.clear();
+        }
 
     private:
         NodePrinter<Node>& printer;
         std::ostringstream out;
-        int depth = 0;
+        std::vector<bool> is_last_stack;
     };
 
     template <typename Node>
@@ -131,14 +167,24 @@ namespace zenex {
             @description: registers the function used to identify a node's kind, usually a variant index or an existing Kind accessor
             @returns -> void
         */
-        void SetTagFn(TagFn fn) { tag_fn = std::move(fn); }
+        void SetTagFn(TagFn fn) {
+            this->tag_fn = std::move(fn);
+        }
 
         /*
             @description: registers a print function for a given node kind
             @returns -> void
         */
         void RegisterPrinter(uint32_t tag, PrintFn fn) {
-            printers[tag] = std::move(fn);
+            this->printers[tag] = std::move(fn);
+        }
+
+        /*
+            @description: checks if a specific tag has a registered print function
+            @returns -> bool
+        */
+        bool HasPrinter(uint32_t tag) const {
+            return this->printers.find(tag) != this->printers.end();
         }
 
         /*
@@ -147,7 +193,7 @@ namespace zenex {
         */
         std::string PrintStructure(const Node& root) {
             PrintContext<Node> ctx(*this);
-            PrintNode(root, ctx);
+            this->PrintNode(root, ctx);
             return ctx.TakeOutput();
         }
 
@@ -156,12 +202,13 @@ namespace zenex {
             @returns -> void
         */
         void PrintNode(const Node& node, PrintContext<Node>& ctx) {
-            if (!tag_fn)
+            if (!this->tag_fn) {
                 throw std::logic_error("zenex: NodePrinter::SetTagFn must be called before printing");
+            }
 
-            uint32_t tag = tag_fn(node);
-            auto it = printers.find(tag);
-            if (it == printers.end()) {
+            uint32_t tag = this->tag_fn(node);
+            auto it = this->printers.find(tag);
+            if (it == this->printers.end()) {
                 ctx.Write("<unregistered node kind " + std::to_string(tag) + ">");
                 return;
             }

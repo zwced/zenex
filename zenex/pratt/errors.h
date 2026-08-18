@@ -28,6 +28,14 @@ namespace zenex {
         */
         explicit ParseException(ParseError err) : std::runtime_error(err.message), error(std::move(err)) {}
 
+        /*
+            @description: builds a comprehensive formatted string combining the message and the line/column
+            @returns -> std::string
+        */
+        std::string Format() const {
+            return this->error.message + " <line:" + std::to_string(this->error.line) + ", col:" + std::to_string(this->error.column) + ">";
+        }
+
         ParseError error;
     };
 

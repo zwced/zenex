@@ -13,11 +13,12 @@ namespace zenex {
         explicit TokenCursor(const zenex::LexerTokens& tokens) : tokens(tokens) {}
 
         /*
-            @description: returns the current token without consuming it
+            @description: returns a token ahead of the current position without consuming it
             @returns -> const zenex::LexerToken&
         */
-        const zenex::LexerToken& Peek() const {
-            return tokens[pos < tokens.size() ? pos : tokens.size() - 1];
+        const zenex::LexerToken& Peek(size_t offset = 0) const {
+            size_t target = this->pos + offset;
+            return this->tokens[target < this->tokens.size() ? target : this->tokens.size() - 1];
         }
 
         /*
@@ -25,7 +26,7 @@ namespace zenex {
             @returns -> const zenex::LexerToken&
         */
         const zenex::LexerToken& Current() const {
-            return tokens[pos > 0 ? pos - 1 : 0];
+            return this->tokens[this->pos > 0 ? this->pos - 1 : 0];
         }
 
         /*
@@ -33,8 +34,10 @@ namespace zenex {
             @returns -> const zenex::LexerToken&
         */
         const zenex::LexerToken& Advance() {
-            const auto& tok = Peek();
-            if (pos < tokens.size()) ++pos;
+            const auto& tok = this->Peek();
+            if (this->pos < this->tokens.size()) {
+                ++this->pos;
+            }
             return tok;
         }
 
@@ -43,7 +46,7 @@ namespace zenex {
             @returns -> bool
         */
         bool AtEnd() const {
-            return Peek().kind == zenex::TokenKind::EndOfFile;
+            return this->Peek().kind == zenex::TokenKind::EndOfFile;
         }
 
         /*
@@ -51,7 +54,7 @@ namespace zenex {
             @returns -> bool
         */
         bool Check(uint8_t token_enum) const {
-            return Peek().enumeration == token_enum && Peek().kind != zenex::TokenKind::EndOfFile;
+            return this->Peek().enumeration == token_enum && this->Peek().kind != zenex::TokenKind::EndOfFile;
         }
 
         /*
@@ -59,8 +62,8 @@ namespace zenex {
             @returns -> bool
         */
         bool Match(uint8_t token_enum) {
-            if (!Check(token_enum)) return false;
-            Advance();
+            if (!this->Check(token_enum)) return false;
+            this->Advance();
             return true;
         }
 
@@ -69,15 +72,31 @@ namespace zenex {
             @returns -> const zenex::LexerToken&
         */
         const zenex::LexerToken& Expect(uint8_t token_enum, const std::string& what) {
-            if (!Check(token_enum)) {
-                const auto& got = Peek();
+            if (!this->Check(token_enum)) {
+                const auto& got = this->Peek();
                 throw ParseException({
                     ParseErrorType::UnexpectedToken,
                     "zenex: expected " + what + " but got '" + got.face + "'",
                     got.line, got.column
                 });
             }
-            return Advance();
+            return this->Advance();
+        }
+
+        /*
+            @description: returns the current index of the cursor for backtracking
+            @returns -> size_t
+        */
+        size_t Position() const {
+            return this->pos;
+        }
+
+        /*
+            @description: sets the cursor to a specific index, primarily used for backtracking after a failed match
+            @returns -> void
+        */
+        void Seek(size_t new_pos) {
+            this->pos = new_pos < this->tokens.size() ? new_pos : this->tokens.size() - 1;
         }
 
     private:

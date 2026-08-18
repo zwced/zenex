@@ -20,7 +20,7 @@ namespace zenex {
             @returns -> void
         */
         void RegisterPrefix(uint8_t token_enum, PrefixFn fn) {
-            prefix_rules[token_enum] = std::move(fn);
+            this->prefix_rules[token_enum] = std::move(fn);
         }
 
         /*
@@ -28,7 +28,7 @@ namespace zenex {
             @returns -> void
         */
         void RegisterInfix(uint8_t token_enum, int bp, InfixFn fn) {
-            infix_rules[token_enum] = { bp, std::move(fn) };
+            this->infix_rules[token_enum] = { bp, std::move(fn) };
         }
 
         /*
@@ -36,7 +36,31 @@ namespace zenex {
             @returns -> void
         */
         void RegisterStatement(uint8_t token_enum, StatementFn fn) {
-            statement_rules[token_enum] = std::move(fn);
+            this->statement_rules[token_enum] = std::move(fn);
+        }
+
+        /*
+            @description: checks if a prefix rule exists for the given token type
+            @returns -> bool
+        */
+        bool HasPrefixRule(uint8_t token_enum) const {
+            return this->prefix_rules.find(token_enum) != this->prefix_rules.end();
+        }
+
+        /*
+            @description: checks if an infix rule exists for the given token type
+            @returns -> bool
+        */
+        bool HasInfixRule(uint8_t token_enum) const {
+            return this->infix_rules.find(token_enum) != this->infix_rules.end();
+        }
+
+        /*
+            @description: checks if a statement rule exists for the given token type
+            @returns -> bool
+        */
+        bool HasStatementRule(uint8_t token_enum) const {
+            return this->statement_rules.find(token_enum) != this->statement_rules.end();
         }
 
         /*
@@ -44,7 +68,7 @@ namespace zenex {
             @returns -> void
         */
         void OnError(ParseErrorHandler handler) {
-            error_handler = std::move(handler);
+            this->error_handler = std::move(handler);
         }
 
         /*
@@ -54,9 +78,9 @@ namespace zenex {
         Node ParseExpression(TokenCursor& cursor, int min_bp = 0) {
             const auto& first = cursor.Advance();
 
-            auto pit = prefix_rules.find(first.enumeration);
-            if (pit == prefix_rules.end()) {
-                Fail({ ParseErrorType::NoPrefixRule,
+            auto pit = this->prefix_rules.find(first.enumeration);
+            if (pit == this->prefix_rules.end()) {
+                this->Fail({ ParseErrorType::NoPrefixRule,
                     "zenex: no prefix rule for token '" + first.face + "'",
                     first.line, first.column });
             }
@@ -65,8 +89,8 @@ namespace zenex {
 
             while (true) {
                 const auto& next = cursor.Peek();
-                auto iit = infix_rules.find(next.enumeration);
-                if (iit == infix_rules.end() || iit->second.bp <= min_bp)
+                auto iit = this->infix_rules.find(next.enumeration);
+                if (iit == this->infix_rules.end() || iit->second.bp <= min_bp)
                     break;
 
                 cursor.Advance();
@@ -83,11 +107,12 @@ namespace zenex {
         Node ParseStatement(TokenCursor& cursor) {
             const auto& lead = cursor.Peek();
 
-            auto sit = statement_rules.find(lead.enumeration);
-            if (sit != statement_rules.end())
+            auto sit = this->statement_rules.find(lead.enumeration);
+            if (sit != this->statement_rules.end()) {
                 return sit->second(*this, cursor);
+            }
 
-            return ParseExpression(cursor);
+            return this->ParseExpression(cursor);
         }
 
         /*
@@ -96,8 +121,9 @@ namespace zenex {
         */
         std::vector<Node> ParseBlock(TokenCursor& cursor, uint8_t close_token, const std::string& close_what) {
             std::vector<Node> body;
-            while (!cursor.Check(close_token) && !cursor.AtEnd())
-                body.push_back(ParseStatement(cursor));
+            while (!cursor.Check(close_token) && !cursor.AtEnd()) {
+                body.push_back(this->ParseStatement(cursor));
+            }
             cursor.Expect(close_token, close_what);
             return body;
         }
@@ -108,8 +134,9 @@ namespace zenex {
         */
         std::vector<Node> ParseProgram(TokenCursor& cursor) {
             std::vector<Node> program;
-            while (!cursor.AtEnd())
-                program.push_back(ParseStatement(cursor));
+            while (!cursor.AtEnd()) {
+                program.push_back(this->ParseStatement(cursor));
+            }
             return program;
         }
 
@@ -121,7 +148,9 @@ namespace zenex {
             @returns -> void
         */
         void Fail(ParseError err) {
-            if (error_handler) error_handler(err);
+            if (this->error_handler) {
+                this->error_handler(err);
+            }
             throw ParseException(std::move(err));
         }
 
