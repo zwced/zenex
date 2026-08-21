@@ -36,6 +36,18 @@ namespace zenex {
             return this->error.message + " <line:" + std::to_string(this->error.line) + ", col:" + std::to_string(this->error.column) + ">";
         }
 
+        /*
+            @description: returns the line number of the error
+            @returns -> int
+        */
+        int GetLine() const { return this->error.line; }
+
+        /*
+            @description: returns the column number of the error
+            @returns -> int
+        */
+        int GetColumn() const { return this->error.column; }
+
         ParseError error;
     };
 

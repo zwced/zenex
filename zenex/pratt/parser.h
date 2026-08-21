@@ -4,6 +4,7 @@
 #include <zenex/pratt/errors.h>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <functional>
 #include <vector>
 
@@ -29,6 +30,23 @@ namespace zenex {
         */
         void RegisterInfix(uint8_t token_enum, int bp, InfixFn fn) {
             this->infix_rules[token_enum] = { bp, std::move(fn) };
+        }
+
+        /*
+            @description: temporarily disables an infix rule without unregistering it, so ParseExpression
+            treats the token as if it had no continuation until UnsuppressInfix is called
+            @returns -> void
+        */
+        void SuppressInfix(uint8_t token_enum) {
+            this->suppressed_infix.insert(token_enum);
+        }
+
+        /*
+            @description: re-enables an infix rule previously disabled by SuppressInfix
+            @returns -> void
+        */
+        void UnsuppressInfix(uint8_t token_enum) {
+            this->suppressed_infix.erase(token_enum);
         }
 
         /*
@@ -90,7 +108,8 @@ namespace zenex {
             while (true) {
                 const auto& next = cursor.Peek();
                 auto iit = this->infix_rules.find(next.enumeration);
-                if (iit == this->infix_rules.end() || iit->second.bp <= min_bp)
+                if (iit == this->infix_rules.end() || iit->second.bp <= min_bp ||
+                    this->suppressed_infix.count(next.enumeration))
                     break;
 
                 cursor.Advance();
@@ -156,7 +175,9 @@ namespace zenex {
 
         std::unordered_map<uint8_t, PrefixFn>    prefix_rules;
         std::unordered_map<uint8_t, InfixRule>   infix_rules;
+        std::unordered_set<uint8_t>              suppressed_infix;
         std::unordered_map<uint8_t, StatementFn> statement_rules;
+
         ParseErrorHandler error_handler;
     };
 }
