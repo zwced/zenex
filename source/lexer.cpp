@@ -20,7 +20,7 @@ namespace zenex {
                         if (faces_equal(this->token_list[i].face, this->token_list[j].face)) {
                             throw LexException({
                                 LexErrorType::DuplicateTokenFace,
-                                "zenex: lstrict - duplicate token face '" + this->token_list[i].face + "' found in rule table"
+                                "lstrict - duplicate token face '" + this->token_list[i].face + "' found in rule table"
                             });
                         }
                     }
@@ -214,13 +214,13 @@ namespace zenex {
                         } else if (this->error_handler) {
                             this->error_handler({
                                 LexErrorType::UnterminatedCharLiteral,
-                                "zenex: unterminated char literal",
+                                "unterminated char literal",
                                 sl, sc, static_cast<uint32_t>(start)
                             });
                         } else {
                             throw LexException({
                                 LexErrorType::UnterminatedCharLiteral,
-                                "zenex: unterminated char literal",
+                                "unterminated char literal",
                                 sl, sc, static_cast<uint32_t>(start)
                             });
                         }
@@ -234,13 +234,13 @@ namespace zenex {
                             } else if (this->error_handler) {
                                 this->error_handler({
                                     LexErrorType::InvalidCharLiteralLength,
-                                    "zenex: char literal '" + source.substr(start, len) + "' must contain exactly one character",
+                                    "char literal '" + source.substr(start, len) + "' must contain exactly one character",
                                     sl, sc, static_cast<uint32_t>(start)
                                 });
                             } else {
                                 throw LexException({
                                     LexErrorType::InvalidCharLiteralLength,
-                                    "zenex: char literal '" + source.substr(start, len) + "' must contain exactly one character",
+                                    "char literal '" + source.substr(start, len) + "' must contain exactly one character",
                                     sl, sc, static_cast<uint32_t>(start)
                                 });
                             }
@@ -351,7 +351,7 @@ namespace zenex {
                 } else {
                     LexError err{
                         LexErrorType::UnexpectedCharacter,
-                        "zenex: unexpected character '" + std::string(1, source[pos]) + "'",
+                        "unexpected character '" + std::string(1, source[pos]) + "'",
                         line, column, static_cast<uint32_t>(pos)
                     };
 

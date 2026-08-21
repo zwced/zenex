@@ -99,7 +99,7 @@ std::string ParseType(zenex::TokenCursor& cur) {
         const auto& got = cur.Peek();
         throw zenex::ParseException({
             zenex::ParseErrorType::UnexpectedToken,
-            "zenex: expected a type but got '" + got.face + "'",
+            "expected a type but got '" + got.face + "'",
             got.line, got.column
         });
     }

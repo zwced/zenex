@@ -76,8 +76,24 @@ namespace zenex {
                 const auto& got = this->Peek();
                 throw ParseException({
                     ParseErrorType::UnexpectedToken,
-                    "zenex: expected " + what + " but got '" + got.face + "'",
+                    "expected " + what + " but got '" + got.face + "'",
                     got.line, got.column
+                });
+            }
+            return this->Advance();
+        }
+
+        /*
+            @description: like Expect, but for statement terminators; never names the token it found (which may be on an unrelated line and have nothing to do with the actual problem)
+            @returns -> const zenex::LexerToken&
+        */
+        const zenex::LexerToken& ExpectSilent(uint8_t token_enum, const std::string& message) {
+            if (!this->Check(token_enum)) {
+                const auto& last = this->Current();
+                throw ParseException({
+                    ParseErrorType::UnexpectedToken,
+                    message,
+                    last.line, last.column + static_cast<uint32_t>(last.face.length())
                 });
             }
             return this->Advance();

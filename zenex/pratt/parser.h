@@ -99,7 +99,7 @@ namespace zenex {
             auto pit = this->prefix_rules.find(first.enumeration);
             if (pit == this->prefix_rules.end()) {
                 this->Fail({ ParseErrorType::NoPrefixRule,
-                    "zenex: no prefix rule for token '" + first.face + "'",
+                    "no prefix rule for token '" + first.face + "'",
                     first.line, first.column });
             }
 

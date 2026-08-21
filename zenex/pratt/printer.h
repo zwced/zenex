@@ -203,7 +203,7 @@ namespace zenex {
         */
         void PrintNode(const Node& node, PrintContext<Node>& ctx) {
             if (!this->tag_fn) {
-                throw std::logic_error("zenex: NodePrinter::SetTagFn must be called before printing");
+                throw std::logic_error("NodePrinter::SetTagFn must be called before printing");
             }
 
             uint32_t tag = this->tag_fn(node);

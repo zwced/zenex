@@ -46,12 +46,12 @@ namespace zenex {
         void apply(lskip const& s)       { this->skip_patterns = s.patterns; }
 
         void apply(llenient_t) {
-             if (strict) throw LexException({ LexErrorType::ConflictingOptions, "zenex: llenient conflicts with lstrict" });
+             if (strict) throw LexException({ LexErrorType::ConflictingOptions, "llenient conflicts with lstrict" });
              lenient = true;
         }
 
          void apply(lstrict_t) {
-             if (lenient) throw LexException({ LexErrorType::ConflictingOptions, "zenex: lstrict conflicts with llenient" });
+             if (lenient) throw LexException({ LexErrorType::ConflictingOptions, "lstrict conflicts with llenient" });
              strict = true;
         }
     };
