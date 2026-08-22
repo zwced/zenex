@@ -2,10 +2,6 @@
 
 zenex is a lexer and parser library for C++20. You define a table of tokens, hand it a few options, and get back a positioned token stream, identifiers, numbers, strings, and comments already handled for you. A Pratt parser module sits on top of it for expression parsing, plus a small tree printer for when you want to actually look at what you built.
 
-It exists because writing a lexer by hand is mostly the same handful of problems every time: keyword matching, comment skipping, string escapes, whitespace, position tracking. None of that is where the interesting part of a language project actually lives. zenex handles the boring layer so you can spend your time on IR generation, optimisation passes, codegen, or an assembler backend instead. It works just as well if you're not building a language at all. If you need a tokeniser for a data format like JSON, YAML, or TOML, zenex gives you that layer without making you design a grammar you don't need.
-
-## Features
-
 - Literal keyword and symbol matching with longest match resolution
 - Regex based token matching, for your own rules and for skip patterns like comments
 - Automatic identifier, number, string, and char literal detection
